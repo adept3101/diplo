@@ -5,7 +5,7 @@ import xml.etree.ElementTree as ET
 app = FastAPI()
 
 
-def get_cb(date_req=None):
+async def get_cb(date_req=None):
     url = f"https://www.cbr.ru/scripts/XML_daily.asp?date_req={date_req}"
 
     try:
@@ -44,6 +44,13 @@ def parse_xml(xml_data):
 
     return rates
 
+# @app.get("/")
+# async def get_course():
+#     xml_data = get_cb("19/11/2025")
+#     return xml_data
+    # rates = parse_xml(xml_data)
+    # for r in rates:
+    #     return f"{r['code']}: {r['value']} руб."
 
 xml_data = get_cb("19/11/2025")
 # print(xml_data)
