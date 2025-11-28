@@ -1,0 +1,6 @@
+#.gitignore
+package-lock.json
+package.json
+node_modules/
+back/.env
+back/__pycache__
