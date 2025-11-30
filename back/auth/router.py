@@ -1,10 +1,11 @@
-from fastapi import FastAPI, Response, HTTPException, Depends
-from schemas import UserSchema
-from auth import security, config
+from fastapi import FastAPI, Response, HTTPException, Depends, APIRouter
+from models.schemas import UserSchema
+from auth.aut import security, config
 
-app = FastAPI()
+router = APIRouter(prefix="/auth", tags=["Auth"])
 
-@app.post("/login")
+
+@router.post("/login")
 def login(creds: UserSchema, response: Response):
     if creds.login == "test" and creds.password == "test":
         token = security.create_access_token(uid="12345")
@@ -12,6 +13,11 @@ def login(creds: UserSchema, response: Response):
         return {"access token": token}
     raise HTTPException(status_code=401, detail="Error")
 
-@app.get("/protected",tags=["Авторизация"], dependencies=[Depends(security.access_token_required)])
+
+@router.get(
+    "/protected",
+    tags=["Авторизация"],
+    dependencies=[Depends(security.access_token_required)],
+)
 async def protected():
     return {"data": "TOP SECRET"}

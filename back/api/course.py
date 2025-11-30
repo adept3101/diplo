@@ -4,13 +4,13 @@ import xml.etree.ElementTree as ET
 import pandas as pd
 import joblib
 from typing import List
-
-# app = FastAPI()
+import pandas as pd
+import joblib
+from datetime import datetime, timedelta
 
 router = APIRouter(prefix="/course", tags=["Course"])
 
 
-# @app.get("/get_cur_cour")
 async def get_cb(date_req=None):
     url = f"https://www.cbr.ru/scripts/XML_daily.asp?date_req={date_req}"
 
@@ -51,8 +51,8 @@ async def get_course(date_req=None):
 
 
 @router.get("/currency")
-async def get_curr(name_val: str):
-    xml_data = await get_cb("21/11/2025")
+async def get_curr(date_req, name_val: str):
+    xml_data = await get_cb(date_req)
     if xml_data is None:
         return []
     root = ET.fromstring(xml_data)
@@ -93,16 +93,70 @@ def parse_history(xml_data):
     return data
 
 
-xml_data = get_history()
+# xml_data = get_history()
 
-data = parse_history(xml_data)
-df = pd.DataFrame(data, columns=["date", "rate"])  # type: ignore
-df.to_csv("usd_history.csv", index=False)
+# data = parse_history(xml_data)
+# df = pd.DataFrame(data, columns=["date", "rate"])  # type: ignore
+# df.to_csv("usd_history.csv", index=False)
 
 
 @router.get("/predict")
-async def predict(days_ahead: int):
-    model = joblib.load("currency_model.pkl")
-    prediction = model.predict([[days_ahead]])[0]
+async def predict(target_date: str):
+    # Загружаем модель
+    model = joblib.load("api/currency_model_boost.pkl")
 
-    return {"predicted_rate": round(float(prediction), 2)}
+    # Загружаем историю курса
+    df = pd.read_csv("usd_history.csv")
+    df["date"] = pd.to_datetime(df["date"], format="%d.%m.%Y", dayfirst=True)
+    df = df.sort_values("date").reset_index(drop=True)
+
+    # Преобразуем целевую дату
+    try:
+        target_date = datetime.strptime(target_date, "%Y-%m-%d")
+    except ValueError:
+        return {"error": "Invalid date format. Use YYYY-MM-DD"}
+
+    last_known_date = df["date"].iloc[-1]
+
+    # Если дата в прошлом — просто вернуть реальный курс
+    if target_date <= last_known_date:
+        value = df.loc[df["date"] == target_date]
+        if not value.empty:
+            return {"predicted_rate": round(float(value["rate"].iloc[0]), 2)}
+        else:
+            return {"error": "Date exists in past but not found in dataset"}
+
+    # Рассчитываем количество дней вперёд
+    days_ahead = (target_date - last_known_date).days
+
+    # Начальное состояние
+    last = df.iloc[-1].copy()
+
+    # Пошаговое прогнозирование
+    for i in range(days_ahead):
+        next_date = last["date"] + timedelta(days=1)
+
+        # Формирование признаков
+        dayofweek = next_date.dayofweek
+        month = next_date.month
+
+        lag1 = last["rate"]
+        lag2 = df.iloc[-2]["rate"]
+        lag7 = df.iloc[-7]["rate"]
+
+        ma7 = df["rate"].rolling(7).mean().iloc[-1]
+        ma30 = df["rate"].rolling(30).mean().iloc[-1]
+
+        X = [[dayofweek, month, lag1, lag2, lag7, ma7, ma30]]
+
+        # Прогноз
+        future_rate = model.predict(X)[0]
+
+        # Добавляем в df для следующих шагов
+        df.loc[len(df)] = {"date": next_date, "rate": future_rate}
+        last = df.iloc[-1]
+
+    return {
+        "predicted_rate": round(float(future_rate), 2),
+        "date": target_date.strftime("%Y-%m-%d"),
+    }
