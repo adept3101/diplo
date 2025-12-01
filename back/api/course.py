@@ -102,15 +102,12 @@ def parse_history(xml_data):
 
 @router.get("/predict")
 async def predict(target_date: str):
-    # Загружаем модель
     model = joblib.load("api/currency_model_boost.pkl")
 
-    # Загружаем историю курса
     df = pd.read_csv("usd_history.csv")
     df["date"] = pd.to_datetime(df["date"], format="%d.%m.%Y", dayfirst=True)
     df = df.sort_values("date").reset_index(drop=True)
 
-    # Преобразуем целевую дату
     try:
         target_date = datetime.strptime(target_date, "%Y-%m-%d")
     except ValueError:
@@ -118,7 +115,6 @@ async def predict(target_date: str):
 
     last_known_date = df["date"].iloc[-1]
 
-    # Если дата в прошлом — просто вернуть реальный курс
     if target_date <= last_known_date:
         value = df.loc[df["date"] == target_date]
         if not value.empty:
@@ -126,7 +122,6 @@ async def predict(target_date: str):
         else:
             return {"error": "Date exists in past but not found in dataset"}
 
-    # Рассчитываем количество дней вперёд
     days_ahead = (target_date - last_known_date).days
 
     # Начальное состояние
@@ -136,7 +131,6 @@ async def predict(target_date: str):
     for i in range(days_ahead):
         next_date = last["date"] + timedelta(days=1)
 
-        # Формирование признаков
         dayofweek = next_date.dayofweek
         month = next_date.month
 
@@ -149,10 +143,8 @@ async def predict(target_date: str):
 
         X = [[dayofweek, month, lag1, lag2, lag7, ma7, ma30]]
 
-        # Прогноз
         future_rate = model.predict(X)[0]
 
-        # Добавляем в df для следующих шагов
         df.loc[len(df)] = {"date": next_date, "rate": future_rate}
         last = df.iloc[-1]
 
