@@ -1,11 +1,13 @@
 import pandas as pd
 import numpy as np
 import tensorflow as tf
-from tensorflow import keras
+import keras
 from keras import layers
 from sklearn.preprocessing import StandardScaler
 import joblib
 import matplotlib.pyplot as plt
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+from datetime import datetime, timedelta
 
 df = pd.read_csv("usd_history.csv")
 
@@ -71,8 +73,6 @@ sequence_length = 10
 X_train_seq, y_train_seq = create_sequences(X_train_scaled, y_train_scaled, sequence_length)
 X_test_seq, y_test_seq = create_sequences(X_test_scaled, y_test_scaled, sequence_length)
 
-# print(f"Размерность обучающих данных: {X_train_seq.shape}")
-# print(f"Размерность тестовых данных: {X_test_seq.shape}")
 
 def create_model(input_shape):
     model = keras.Sequential([
@@ -127,25 +127,16 @@ y_pred = scaler_y.inverse_transform(y_pred_scaled).flatten()
 
 y_test_for_compare = y_test[sequence_length:]
 
-# print("\n" + "="*50)
-# print("РЕЗУЛЬТАТЫ ПРОГНОЗИРОВАНИЯ")
-# print("="*50)
-# print("\nПоследние реальные значения:")
 print(y_test_for_compare[-10:])
 
 print("\nПрогноз модели:")
 print(y_pred[-10:])
 
-from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
 mae = mean_absolute_error(y_test_for_compare, y_pred)
 rmse = np.sqrt(mean_squared_error(y_test_for_compare, y_pred))
 r2 = r2_score(y_test_for_compare, y_pred)
 
-# print(f"\nМетрики модели:")
-# print(f"MAE: {mae:.4f}")
-# print(f"RMSE: {rmse:.4f}")
-# print(f"R² Score: {r2:.4f}")
 
 plt.figure(figsize=(12, 4))
 plt.subplot(1, 2, 1)
@@ -173,25 +164,86 @@ joblib.dump(scaler_X, "scaler_X.pkl")
 joblib.dump(scaler_y, "scaler_y.pkl")
 
 
-def predict_future(model, last_sequence, scaler_X, scaler_y, n_days=7):
+# def predict_future(model, last_sequence, scaler_X, scaler_y,  n_days=7):
+#     predictions = []
+#     current_sequence = last_sequence.copy()
+#
+#     for _ in range(n_days):
+#         pred_scaled = model.predict(current_sequence[np.newaxis, ...], verbose=0)
+#         pred = scaler_y.inverse_transform(pred_scaled)[0, 0]
+#         predictions.append(pred)
+#
+#         new_row = current_sequence[-1].copy()
+#         current_sequence = np.vstack([current_sequence[1:], new_row])
+#
+#     return predictions
+
+
+def predict_future(model, last_sequence, scaler_X, scaler_y, 
+                   n_days=7, start_date=None):
+
     predictions = []
     current_sequence = last_sequence.copy()
+
+    if start_date is None:
+        raise ValueError("start_date must be specified! Example: '2025-12-03'")
     
-    for _ in range(n_days):
-        # Предсказание следующего значения
+    if isinstance(start_date, str):
+        start_date = datetime.fromisoformat(start_date)
+
+    for day in range(n_days):
         pred_scaled = model.predict(current_sequence[np.newaxis, ...], verbose=0)
         pred = scaler_y.inverse_transform(pred_scaled)[0, 0]
-        predictions.append(pred)
-        
-        # Обновление последовательности для следующего предсказания
-        # (в реальном приложении нужно также обновить другие признаки)
+
+        forecast_date = start_date + timedelta(days=day)
+
+        predictions.append({
+            "date": forecast_date.date(),
+            "prediction": float(pred)
+        })
+
         new_row = current_sequence[-1].copy()
-        # Здесь должна быть логика обновления всех признаков
         current_sequence = np.vstack([current_sequence[1:], new_row])
-    
+
     return predictions
 
-# Пример использования функции предсказания
+
 last_seq = X_test_seq[-1]
-future_predictions = predict_future(model, last_seq, scaler_X, scaler_y, n_days=7)
+future_predictions = predict_future(model, last_seq, scaler_X, scaler_y, n_days=7, start_date="2025-12-03")
 print(f"\nПрогноз на следующие 7 дней: {future_predictions}")
+
+
+
+results = predict_future(
+    model=model,
+    last_sequence=last_seq,
+    scaler_X=scaler_X,
+    scaler_y=scaler_y,
+    n_days=7,
+    start_date="2025-12-03"
+)
+
+for r in results:
+    print(r["date"], r["prediction"])
+
+forecast_dates = [r["date"] for r in results]
+forecast_values = [r["prediction"] for r in results]
+
+plt.figure(figsize=(12, 5))
+
+plt.plot(forecast_dates, forecast_values, marker="o", label="Прогноз", linewidth=2)
+
+plt.title("Прогноз курса USD", fontsize=14)
+plt.xlabel("Дата", fontsize=12)
+plt.ylabel("Курс", fontsize=12)
+plt.grid(True)
+plt.legend()
+
+plt.xticks(rotation=45)
+plt.tight_layout()
+
+plt.savefig("graph.png", dpi=200, bbox_inches='tight')
+plt.close()
+
+print("\nГрафик сохранён в файл graph.png")
+

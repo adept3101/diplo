@@ -15,5 +15,5 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(course.router)
 app.include_router(router.router)
+app.include_router(course.router)
