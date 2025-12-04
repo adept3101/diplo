@@ -3,5 +3,5 @@ from pydantic import BaseModel, Field
 
 
 class UserSchema(BaseModel):
-    login: str = Field(max_length=32, pattern=r"^[a-zA-Z]+$")
+    login: str = Field(max_length=32, pattern=r"^[a-zA-Z](.[a-zA-Z0-9_-]*)$")
     password: str = Field(max_length=32)
