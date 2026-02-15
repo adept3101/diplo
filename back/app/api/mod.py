@@ -194,4 +194,4 @@ if len(X_test) > 0:
         print(f"  День {i}: {pred:.4f}")
 
     # Сохранение модели
-    model.save("usd_rate_lstm_model.h5")
+    model.save("usd_model.h5")

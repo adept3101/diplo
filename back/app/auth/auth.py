@@ -43,15 +43,6 @@ def login(creds: UserSchema, response: Response, db: Session = Depends(get_db)):
     response.set_cookie(config.JWT_ACCESS_COOKIE_NAME, token)
     return {"access token": token}
 
-
-# @router.get(
-#     "/protected",
-#     dependencies=[Depends(security.access_token_required)],
-# )
-# async def protected():
-#     return {"data": "TOP SECRET"}
-
-
 @router.post("/register")
 def register(reg: UserSchema, db: Session = Depends(get_db)):
     existing_user = db.query(Users).filter(Users.login == reg.login).first()
@@ -66,3 +57,4 @@ def register(reg: UserSchema, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(new_usr)
     return new_usr
+
