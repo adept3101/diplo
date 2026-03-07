@@ -1,8 +1,6 @@
 from sqlalchemy import Column, Integer, String
-from sqlalchemy.orm import declarative_base, Mapped, MappedColumn
+from sqlalchemy.orm import Mapped, MappedColumn
 from app.core.db import Base
-
-# Base = declarative_base()
 
 
 class Users(Base):

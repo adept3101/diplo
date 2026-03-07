@@ -1,27 +1,29 @@
-from fastapi import FastAPI, APIRouter
+from fastapi import APIRouter, HTTPException
 import requests
 import xml.etree.ElementTree as ET
-import pandas as pd
-import joblib
-from typing import List
-import pandas as pd
-import joblib
-from datetime import datetime, timedelta
+import httpx
+from datetime import datetime
 
 router = APIRouter(prefix="/course", tags=["Course"])
+client = httpx.AsyncClient()
+
+def clean_value(value_str: str) -> float:
+    try:
+        return float(value_str.replace(',', '.'))
+    except (ValueError, AttributeError):
+        return 0.0
 
 
 async def get_cb(date_req=None):
-    url = f"https://www.cbr.ru/scripts/XML_daily.asp?date_req={date_req}"
-
+    params = {"date_req": date_req} if date_req else {}
+    url = "https://www.cbr.ru/scripts/XML_daily.asp"
+    
     try:
-        response = requests.get(url)
+        response = await client.get(url, params=params, timeout=10.0)
         response.raise_for_status()
-
         return response.text
-    except requests.exceptions.RequestException as e:
-        print(f"Error: {e}")
-        return None
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f"CBR service unavailable: {e}")
 
 
 def parse_xml(xml_data):
@@ -44,119 +46,68 @@ def parse_xml(xml_data):
 
 @router.get("/")
 async def get_course(date_req=None):
-    # xml_data = await get_cb("19/11/2025")
     xml_data = await get_cb(date_req)
     res = parse_xml(xml_data)
     return res
 
 
 @router.get("/currency")
-async def get_curr(date_req, name_val: str):
+async def get_curr(name_val: str, date_req: str):
     xml_data = await get_cb(date_req)
-    if xml_data is None:
-        return []
+    if not xml_data:
+        raise HTTPException(status_code=404, detail="No data from CBR")
+        
     root = ET.fromstring(xml_data)
-    rates = []
-
+    
     for valute in root.findall("Valute"):
         char_code = valute.findtext("CharCode")
-        if char_code == name_val:
-            name = valute.findtext("Name")
-            nominal = valute.findtext("Nominal")
-            value = valute.findtext("Value")
+        
+        # Сравниваем код валюты (приводим к верхнему регистру для надежности)
+        if char_code and char_code.upper() == name_val.upper():
+            # Извлекаем сырые строки
+            raw_value = valute.findtext("Value")
+            raw_nominal = valute.findtext("Nominal")
+            raw_name = valute.findtext("Name")
 
-            rates.append(
-                {"code": char_code, "name": name, "nominal": nominal, "value": value}
-            )
+            # Проверка: если вдруг ЦБ прислал пустой тег (защита от None)
+            if raw_value is None:
+                raise HTTPException(status_code=500, detail="Value field is missing in XML")
 
-    return rates
+            return {
+                "code": char_code,
+                "name": raw_name or "Unknown",
+                "nominal": int(raw_nominal) if raw_nominal else 1,
+                "value": clean_value(raw_value), # Теперь сюда попадает только str
+                "date": date_req or datetime.now().strftime("%d/%m/%Y")
+            }
+    
+    raise HTTPException(status_code=404, detail="Currency not found")
 
+@router.get("/history")
+async def get_currency_history(name_val: str, date_from: str, date_to: str):
+    # ЦБ требует ID валюты (например, R01235 для USD), 
+    # но мы для простоты сначала найдем ID по CharCode
+    all_rates_xml = await get_cb(date_to)
+    root_all = ET.fromstring(all_rates_xml)
+    valute_id = None
+    for v in root_all.findall("Valute"):
+        if v.findtext("CharCode") == name_val.upper():
+            valute_id = v.get("ID")
+            break
+            
+    if not valute_id:
+        raise HTTPException(status_code=404, detail="Currency ID not found")
 
-# def get_history(currency_code="R01235", start="01/01/2020", end="01/01/2025"):
-#     url = f"https://www.cbr.ru/scripts/XML_dynamic.asp?date_req1={start}&date_req2={end}&VAL_NM_RQ={currency_code}"
-#     response = requests.get(url)
-#     response.raise_for_status()
-#     return response.text
-#
-#
-# def parse_history(xml_data):
-#     root = ET.fromstring(xml_data)
-#     data = []
-#
-#     for record in root.findall("Record"):
-#         date = record.attrib["Date"]
-#         value = record.findtext("Value")
-#         if value is not None:
-#             val = value.replace(",", ".")
-#             data.append([date, float(val)])
-#
-#     return data
-
-
-# xml_data = get_history()
-
-# data = parse_history(xml_data)
-# df = pd.DataFrame(data, columns=["date", "rate"])  # type: ignore
-# df.to_csv("usd_history.csv", index=False)
-
-
-@router.get("/predict")
-async def predict(target_date: str):
-    # Загружаем модель
-    model = joblib.load("app/api/currency_model_boost.pkl")
-
-    # Загружаем историю курса
-    df = pd.read_csv("app/api/usd_history.csv")
-    df["date"] = pd.to_datetime(df["date"], format="%d.%m.%Y", dayfirst=True)
-    df = df.sort_values("date").reset_index(drop=True)
-
-    # Преобразуем целевую дату
-    try:
-        target_date = datetime.strptime(target_date, "%Y-%m-%d")
-    except ValueError:
-        return {"error": "Invalid date format. Use YYYY-MM-DD"}
-
-    last_known_date = df["date"].iloc[-1]
-
-    # Если дата в прошлом — просто вернуть реальный курс
-    if target_date <= last_known_date:
-        value = df.loc[df["date"] == target_date]
-        if not value.empty:
-            return {"predicted_rate": round(float(value["rate"].iloc[0]), 2)}
-        else:
-            return {"error": "Date exists in past but not found in dataset"}
-
-    # Рассчитываем количество дней вперёд
-    days_ahead = (target_date - last_known_date).days
-
-    # Начальное состояние
-    last = df.iloc[-1].copy()
-
-    # Пошаговое прогнозирование
-    for i in range(days_ahead):
-        next_date = last["date"] + timedelta(days=1)
-
-        # Формирование признаков
-        dayofweek = next_date.dayofweek
-        month = next_date.month
-
-        lag1 = last["rate"]
-        lag2 = df.iloc[-2]["rate"]
-        lag7 = df.iloc[-7]["rate"]
-
-        ma7 = df["rate"].rolling(7).mean().iloc[-1]
-        ma30 = df["rate"].rolling(30).mean().iloc[-1]
-
-        X = [[dayofweek, month, lag1, lag2, lag7, ma7, ma30]]
-
-        # Прогноз
-        future_rate = model.predict(X)[0]
-
-        # Добавляем в df для следующих шагов
-        df.loc[len(df)] = {"date": next_date, "rate": future_rate}
-        last = df.iloc[-1]
-
-    return {
-        "predicted_rate": round(float(future_rate), 2),
-        "date": target_date.strftime("%Y-%m-%d"),
-    }
+    # Запрос динамики курса
+    url = f"https://www.cbr.ru/scripts/XML_dynamic.asp?date_req1={date_from}&date_req2={date_to}&VAL_NM_RQ={valute_id}"
+    response = await client.get(url)
+    root = ET.fromstring(response.text)
+    
+    history = []
+    for record in root.findall("Record"):
+        history.append({
+            "date": record.get("Date"),
+            "value": clean_value(record.findtext("Value")),
+            "nominal": int(record.findtext("Nominal") or 1)
+        })
+    return history
