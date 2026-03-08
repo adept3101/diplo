@@ -58,3 +58,7 @@ def register(reg: UserSchema, db: Session = Depends(get_db)):
     db.refresh(new_usr)
     return new_usr
 
+def get_usr(creds: UserSchema, db: Session = Depends((get_db))):
+   usr_login = db.query(Users).filter(Users.login == creds.login).first()
+   
+   return usr_login
