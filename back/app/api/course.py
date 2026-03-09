@@ -1,5 +1,4 @@
-from fastapi import APIRouter, HTTPException
-import requests
+from fastapi import APIRouter, HTTPException, Query
 import xml.etree.ElementTree as ET
 import httpx
 from datetime import datetime
@@ -51,42 +50,58 @@ async def get_course(date_req=None):
     return res
 
 
+# @router.get("/currency")
+# async def get_curr(name_val: str, date_req: str):
+#     xml_data = await get_cb(date_req)
+#     if not xml_data:
+#         raise HTTPException(status_code=404, detail="No data from CBR")
+#
+#     root = ET.fromstring(xml_data)
+#
+#     for valute in root.findall("Valute"):
+#         char_code = valute.findtext("CharCode")
+#
+#         # Сравниваем код валюты (приводим к верхнему регистру для надежности)
+#         if char_code and char_code.upper() == name_val.upper():
+#             # Извлекаем сырые строки
+#             raw_value = valute.findtext("Value")
+#             raw_nominal = valute.findtext("Nominal")
+#             raw_name = valute.findtext("Name")
+#
+#             # Проверка: если вдруг ЦБ прислал пустой тег (защита от None)
+#             if raw_value is None:
+#                 raise HTTPException(status_code=500, detail="Value field is missing in XML")
+#
+#             return {
+#                 "code": char_code,
+#                 "name": raw_name or "Unknown",
+#                 "nominal": int(raw_nominal) if raw_nominal else 1,
+#                 "value": clean_value(raw_value), # Теперь сюда попадает только str
+#                 "date": date_req or datetime.now().strftime("%d/%m/%Y")
+#             }
+#
+#     raise HTTPException(status_code=404, detail="Currency not found")
+
 @router.get("/currency")
-async def get_curr(name_val: str, date_req: str):
+async def get_currency(
+    date_req: str = Query(..., description="Format: dd/mm/yyyy"),
+    name_val: str = Query(..., description="Currency code, e.g. USD")
+):
     xml_data = await get_cb(date_req)
-    if not xml_data:
-        raise HTTPException(status_code=404, detail="No data from CBR")
-        
-    root = ET.fromstring(xml_data)
+    all_rates = parse_xml(xml_data)
     
-    for valute in root.findall("Valute"):
-        char_code = valute.findtext("CharCode")
-        
-        # Сравниваем код валюты (приводим к верхнему регистру для надежности)
-        if char_code and char_code.upper() == name_val.upper():
-            # Извлекаем сырые строки
-            raw_value = valute.findtext("Value")
-            raw_nominal = valute.findtext("Nominal")
-            raw_name = valute.findtext("Name")
-
-            # Проверка: если вдруг ЦБ прислал пустой тег (защита от None)
-            if raw_value is None:
-                raise HTTPException(status_code=500, detail="Value field is missing in XML")
-
-            return {
-                "code": char_code,
-                "name": raw_name or "Unknown",
-                "nominal": int(raw_nominal) if raw_nominal else 1,
-                "value": clean_value(raw_value), # Теперь сюда попадает только str
-                "date": date_req or datetime.now().strftime("%d/%m/%Y")
-            }
+    # Фильтруем по коду (USD, EUR и т.д.)
+    filtered = [r for r in all_rates if r["code"] == name_val]
     
-    raise HTTPException(status_code=404, detail="Currency not found")
+    if not filtered:
+        # Если данных на дату нет (выходные), фронтенд делает Forward Fill, 
+        # так что возвращаем пустой массив или 404
+        return []
+        
+    return filtered
 
 @router.get("/history")
 async def get_currency_history(name_val: str, date_from: str, date_to: str):
-    # ЦБ требует ID валюты (например, R01235 для USD), 
-    # но мы для простоты сначала найдем ID по CharCode
     all_rates_xml = await get_cb(date_to)
     root_all = ET.fromstring(all_rates_xml)
     valute_id = None
@@ -107,7 +122,7 @@ async def get_currency_history(name_val: str, date_from: str, date_to: str):
     for record in root.findall("Record"):
         history.append({
             "date": record.get("Date"),
-            "value": clean_value(record.findtext("Value")),
+            "value": clean_value(record.findtext("Value")), #type: ignore
             "nominal": int(record.findtext("Nominal") or 1)
         })
     return history

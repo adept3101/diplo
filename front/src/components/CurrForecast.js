@@ -3,6 +3,7 @@ import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, ReferenceLine
 } from "recharts";
+// import api from '../services/api.js'
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
@@ -42,15 +43,33 @@ function parseRate(str) {
 
 // Fetch курс за один день
 async function fetchRate(dateIso, currCode) {
-  const dd = dateIso.split("-").reverse().join("/"); // YYYY-MM-DD → DD/MM/YYYY
+  const dd = dateIso.split("-").reverse().join("/");
   const url = `${API_BASE}/currency?date_req=${dd}&name_val=${currCode}`;
-  const res = await fetch(url);
-  if (!res.ok) return null;
-  const data = await res.json();
-  if (!data || data.length === 0) return null;
-  return parseRate(data[0].value) / parseInt(data[0].nominal, 10);
-}
+  
+  try {
+    const res = await fetch(url);
+    if (!res.ok) return null;
 
+    const data = await res.json();
+
+    // Проверяем: это массив? Он не пустой? У первого элемента есть .value?
+    if (!Array.isArray(data) || data.length === 0 || !data[0]) {
+      console.warn(`Нет данных для ${currCode} на дату ${dateIso}`);
+      return null;
+    }
+
+    // Добавляем опциональную цепочку ?. для максимальной защиты
+    const value = data[0]?.value;
+    const nominal = data[0]?.nominal;
+
+    if (value === undefined || nominal === undefined) return null;
+
+    return parseRate(value) / parseInt(nominal, 10);
+  } catch (err) {
+    console.error("Ошибка запроса:", err);
+    return null;
+  }
+}
 // Формирует историю за N дней назад до сегодня
 async function fetchHistory(currCode, days) {
   const promises = [];
@@ -289,9 +308,31 @@ export default function CurrForecast() {
               Прогноз курса валют · ЦБ РФ
             </span>
           </div>
+
+<div style={{ display: "flex", alignItems: "center", gap: 20 }}>
+    {/* КНОПКА ПРОФИЛЯ */}
+    <a 
+      href="/profile/me" 
+      style={{
+        textDecoration: "none",
+        fontFamily: "'IBM Plex Mono', monospace",
+        fontSize: 12,
+        fontWeight: 500,
+        color: "#111",
+        padding: "4px 8px",
+        border: "1px solid #111",
+        borderRadius: 4,
+        transition: "all 0.12s",
+      }}
+      onMouseOver={(e) => { e.target.style.background = "#111"; e.target.style.color = "#fff"; }}
+      onMouseOut={(e) => { e.target.style.background = "transparent"; e.target.style.color = "#111"; }}
+    >
+      Профиль
+    </a>
           <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: "#9ca3af" }}>
             {new Date().toLocaleDateString("ru-RU")}
           </span>
+    </div>
         </header>
 
         {error && (

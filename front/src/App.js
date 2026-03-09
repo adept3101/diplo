@@ -3,8 +3,7 @@ import { BrowserRouter as Router, Routes, Route} from 'react-router-dom'; //Navi
 import Login from './components/login';
 import Register from './components/register';
 import CurrForecast from './components/CurrForecast'
-// import CurrencyViewer from './components/CurrencyViewer'
-
+import Profile from './components/profile'
 // Компонент для защищенных маршрутов
 // function PrivateRoute({ children }) {
 //   const token = localStorage.getItem('token');
@@ -19,7 +18,7 @@ function App() {
           <Route path="/auth/login" element={<Login />} />
           <Route path="/auth/register" element={<Register />} />
           <Route path="/course/currency" element={<CurrForecast />} />
-          {/* <Route path="/course/currency" element={<CurrencyViewer />} /> */}
+          <Route path="/profile/me" element={<Profile />} />
         </Routes>
       </div>
     </Router>
