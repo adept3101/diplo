@@ -1,4 +1,0 @@
-__pycache__
-app/migrations/versions
-app/api/*.csv
-go/

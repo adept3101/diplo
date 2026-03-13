@@ -3,7 +3,7 @@ import xml.etree.ElementTree as ET
 import pandas as pd
 
 
-def get_history(currency_code="R01235", start="01/01/2020", end="01/01/2025"):
+def get_history(currency_code="R01235", start="01/01/2020", end="08/03/2026"):
     url = f"https://www.cbr.ru/scripts/XML_dynamic.asp?date_req1={start}&date_req2={end}&VAL_NM_RQ={currency_code}"
     response = requests.get(url)
     response.raise_for_status()

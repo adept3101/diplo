@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
-from sklearn.preprocessing import StandardScaler, MinMaxScaler
-from sklearn.model_selection import train_test_split, TimeSeriesSplit
+from sklearn.preprocessing import StandardScaler
+# from sklearn.model_selection import train_test_split, TimeSeriesSplit
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 from sklearn.impute import KNNImputer
 from keras.models import Sequential, load_model
@@ -9,8 +9,7 @@ from keras.layers import Dense, LSTM, Dropout, Bidirectional
 from keras.callbacks import EarlyStopping, ReduceLROnPlateau, ModelCheckpoint
 from keras.optimizers import Adam
 import matplotlib.pyplot as plt
-import seaborn as sns
-from datetime import datetime, timedelta
+from datetime import timedelta
 import warnings
 warnings.filterwarnings('ignore')
 
@@ -409,14 +408,3 @@ def load_and_predict(model_path, feature_scaler_path, target_scaler_path,
     )
     
     return predictions
-
-# Пример использования загрузки модели
-# predictions = load_and_predict(
-#     'usd_rate_lstm_improved.h5', 
-#     'feature_scaler.pkl', 
-#     'target_scaler.pkl',
-#     last_sequence, 
-#     30, 
-#     feature_columns, 
-#     time_steps
-# )

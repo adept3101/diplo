@@ -1,7 +1,11 @@
 #.gitignore
+__pycache__
+# back/app/migrations/versions
+# go/
 package-lock.json
 package.json
 node_modules/
 back/.env
 back/__pycache__
 usd_history.csv
+fron_t/
