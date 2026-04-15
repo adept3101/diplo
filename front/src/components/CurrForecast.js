@@ -3,13 +3,11 @@ import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, ReferenceLine
 } from "recharts";
-// import api from '../services/api.js'
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
 const API_BASE = "http://localhost:8000/course";
 
-// Валюты, которые поддерживает ЦБ РФ
 const CURRENCIES = [
   { id: "USD", name: "Доллар США" },
   { id: "EUR", name: "Евро" },
@@ -45,46 +43,33 @@ function parseRate(str) {
 async function fetchRate(dateIso, currCode) {
   const dd = dateIso.split("-").reverse().join("/");
   const url = `${API_BASE}/currency?date_req=${dd}&name_val=${currCode}`;
-  
   try {
     const res = await fetch(url);
     if (!res.ok) return null;
-
     const data = await res.json();
-
-    // Проверяем: это массив? Он не пустой? У первого элемента есть .value?
-    if (!Array.isArray(data) || data.length === 0 || !data[0]) {
-      console.warn(`Нет данных для ${currCode} на дату ${dateIso}`);
-      return null;
-    }
-
-    // Добавляем опциональную цепочку ?. для максимальной защиты
-    const value = data[0]?.value;
+    if (!Array.isArray(data) || data.length === 0 || !data[0]) return null;
+    const value   = data[0]?.value;
     const nominal = data[0]?.nominal;
-
     if (value === undefined || nominal === undefined) return null;
-
     return parseRate(value) / parseInt(nominal, 10);
-  } catch (err) {
-    console.error("Ошибка запроса:", err);
+  } catch {
     return null;
   }
 }
+
 // Формирует историю за N дней назад до сегодня
 async function fetchHistory(currCode, days) {
+  const end      = today();
   const promises = [];
-  const end = today();
-  
+
   for (let i = days; i >= 0; i--) {
     const iso = addDays(end, -i);
-    promises.push(
-      fetchRate(iso, currCode).then(rate => ({ iso, rate }))
-    );
+    promises.push(fetchRate(iso, currCode).then(rate => ({ iso, rate })));
   }
-  
+
   const results = await Promise.all(promises);
-  
-  // Forward Fill: если rate равен null, берем значение предыдущего дня
+
+  // Forward Fill: берём последнее известное значение для выходных/праздников
   let lastValidRate = 0;
   const filledData = results.map((item) => {
     if (item.rate !== null && !isNaN(item.rate)) {
@@ -92,28 +77,30 @@ async function fetchHistory(currCode, days) {
     }
     return {
       ...item,
-      rate: lastValidRate, // используем последнее известное значение
-      date: fmtDate(item.iso)
+      rate: lastValidRate,
+      date: fmtDate(item.iso),
     };
   });
 
-  // Отфильтровываем только самые первые дни, если по ним ВООБЩЕ не было данных в начале периода
   return filledData.filter(r => r.rate > 0);
 }
 
-// ── Tiny sparkline ────────────────────────────────────────────────────────────
+// ── Spark ─────────────────────────────────────────────────────────────────────
 
 function Spark({ data, up }) {
-  const mn = Math.min(...data), mx = Math.max(...data);
-  const W = 56, H = 22;
-  const pts = data.map((v, i) =>
-    `${(i / (data.length - 1)) * W},${H - 2 - ((v - mn) / ((mx - mn) || 1)) * (H - 4)}`
-  ).join(" ");
+  const mn  = Math.min(...data);
+  const mx  = Math.max(...data);
+  const W   = 56, H = 22;
+  const pts = data
+    .map((v, i) => `${(i / (data.length - 1)) * W},${H - 2 - ((v - mn) / ((mx - mn) || 1)) * (H - 4)}`)
+    .join(" ");
   return (
     <svg width={W} height={H}>
-      <polyline points={pts} fill="none"
+      <polyline
+        points={pts} fill="none"
         stroke={up ? "#16a34a" : "#dc2626"}
-        strokeWidth={1.2} strokeLinejoin="round" />
+        strokeWidth={1.2} strokeLinejoin="round"
+      />
     </svg>
   );
 }
@@ -132,7 +119,7 @@ const Tip = ({ active, payload, label }) => {
       <div style={{ color: "#6b7280", marginBottom: 4 }}>{label}</div>
       {payload.map((p, i) => (
         <div key={i} style={{ color: p.color, fontWeight: 600 }}>
-          {p.name}: {Number(p.value).toLocaleString("ru-RU")}
+          {p.name}: {Number(p.value).toLocaleString("ru-RU", { minimumFractionDigits: 4 })}
         </div>
       ))}
     </div>
@@ -142,20 +129,19 @@ const Tip = ({ active, payload, label }) => {
 // ── App ───────────────────────────────────────────────────────────────────────
 
 export default function CurrForecast() {
-  const [currCode, setCurrCode] = useState("USD");
-  const [hDays, setHDays] = useState(30);
-  const [fDays, setFDays] = useState(30);
-  const [history, setHistory] = useState([]);
-  const [forecast, setForecast] = useState([]);
-  const [sideRates, setSideRates] = useState({}); // { USD: { rate, prev }, EUR: ... }
-  const [loading, setLoading] = useState(false);
+  const [currCode,    setCurrCode]    = useState("USD");
+  const [hDays,       setHDays]       = useState(30);
+  const [fDays,       setFDays]       = useState(7);
+  const [history,     setHistory]     = useState([]);
+  const [forecast,    setForecast]    = useState([]);
+  const [sideRates,   setSideRates]   = useState({});
   const [histLoading, setHistLoading] = useState(false);
   const [predLoading, setPredLoading] = useState(false);
-  const [done, setDone] = useState(false);
-  const [tab, setTab] = useState("chart");
-  const [error, setError] = useState(null);
+  const [done,        setDone]        = useState(false);
+  const [tab,         setTab]         = useState("chart");
+  const [error,       setError]       = useState(null);
 
-  // При изменении валюты или периода — загружаем историю
+  // При изменении валюты или периода — перезагружаем историю
   useEffect(() => {
     setDone(false);
     setForecast([]);
@@ -163,7 +149,7 @@ export default function CurrForecast() {
     loadHistory();
   }, [currCode, hDays]); // eslint-disable-line
 
-  // При монтировании — загружаем текущие курсы для сайдбара
+  // При монтировании — загружаем сайдбар
   useEffect(() => {
     loadSideRates();
   }, []);
@@ -181,9 +167,9 @@ export default function CurrForecast() {
   }
 
   async function loadSideRates() {
-    const todayIso = today();
+    const todayIso     = today();
     const yesterdayIso = addDays(todayIso, -1);
-    const results = {};
+    const results      = {};
     await Promise.all(
       CURRENCIES.map(async (c) => {
         const [cur, prev] = await Promise.all([
@@ -196,65 +182,61 @@ export default function CurrForecast() {
     setSideRates(results);
   }
 
+  // ── Прогноз ────────────────────────────────────────────────────────────────
+
   async function runForecast() {
     if (!history.length) return;
     setPredLoading(true);
-    setLoading(true);
-    setDone(false);
     setError(null);
 
     try {
-      // Предсказываем одну дату — последнюю дату + fDays
-      const lastIso = history.at(-1).iso;
-      const targetIso = addDays(lastIso, fDays);
+      // Передаём и количество дней, и код валюты
+      const res = await fetch(`${API_BASE}/predict?days=${fDays}&name_val=${currCode}`);
 
-      const res = await fetch(`${API_BASE}/predict?target_date=${targetIso}`);
-      if (!res.ok) throw new Error(`Ошибка API: ${res.status}`);
-      const data = await res.json();
-
-      if (data.error) throw new Error(data.error);
-
-      // Генерируем промежуточные точки интерполяцией для красивого графика
-      const startRate = history.at(-1).rate;
-      const endRate = data.predicted_rate;
-      const points = [];
-      for (let i = 1; i <= fDays; i++) {
-        const iso = addDays(lastIso, i);
-        const t = i / fDays;
-        const forecast = parseFloat((startRate + (endRate - startRate) * t).toFixed(4));
-        const uncertainty = 0.015 * t; // растущая неопределённость
-        const conf = parseFloat(Math.max(25, 100 - i * 1.5).toFixed(0));
-        points.push({
-          iso,
-          date: fmtDate(iso),
-          forecast,
-          upper: parseFloat((forecast * (1 + uncertainty)).toFixed(4)),
-          lower: parseFloat((forecast * (1 - uncertainty)).toFixed(4)),
-          conf,
-        });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: res.statusText }));
+        throw new Error(err.detail || `Статус ${res.status}`);
       }
+
+      const data = await res.json(); // [{date, predicted_rate}, ...]
+
+      const points = data.map((item, i) => {
+        const uncertainty = 0.015 * (i + 1); // нарастающий коридор неопределённости
+        return {
+          iso:      item.date,
+          date:     fmtDate(item.date),
+          forecast: item.predicted_rate,
+          upper:    parseFloat((item.predicted_rate * (1 + uncertainty)).toFixed(4)),
+          lower:    parseFloat((item.predicted_rate * (1 - uncertainty)).toFixed(4)),
+          conf:     Math.max(25, 100 - (i + 1) * 2),
+        };
+      });
+
       setForecast(points);
       setDone(true);
     } catch (e) {
       setError("Ошибка прогноза: " + e.message);
     } finally {
       setPredLoading(false);
-      setLoading(false);
     }
   }
 
-  const cur = history.at(-1)?.rate ?? 0;
-  const prev = history.at(-2)?.rate ?? cur;
-  const delta = cur - prev;
+  // ── Производные значения ───────────────────────────────────────────────────
+
+  const cur      = history.at(-1)?.rate ?? 0;
+  const prev     = history.at(-2)?.rate ?? cur;
+  const delta    = cur - prev;
   const deltaPct = prev ? (delta / prev) * 100 : 0;
-  const fLast = forecast.at(-1)?.forecast;
-  const fPct = fLast ? ((fLast - cur) / cur * 100) : null;
-  const dp = cur > 100 ? 2 : cur > 10 ? 4 : 4;
+  const fLast    = forecast.at(-1)?.forecast;
+  const fPct     = fLast && cur ? ((fLast - cur) / cur * 100) : null;
+  const dp       = cur > 100 ? 2 : 4;
 
   const chartData = [
     ...history.map(d => ({ ...d, type: "h" })),
     ...(done ? forecast : []),
   ];
+
+  // ── Стили ─────────────────────────────────────────────────────────────────
 
   const segBtn = (active) => ({
     padding: "5px 12px", fontSize: 12, cursor: "pointer",
@@ -272,6 +254,8 @@ export default function CurrForecast() {
     marginRight: 20, transition: "all 0.12s",
     letterSpacing: "0.03em",
   });
+
+  // ── Render ────────────────────────────────────────────────────────────────
 
   return (
     <div style={{
@@ -308,33 +292,29 @@ export default function CurrForecast() {
               Прогноз курса валют · ЦБ РФ
             </span>
           </div>
-
-<div style={{ display: "flex", alignItems: "center", gap: 20 }}>
-    {/* КНОПКА ПРОФИЛЯ */}
-    <a 
-      href="/profile/me" 
-      style={{
-        textDecoration: "none",
-        fontFamily: "'IBM Plex Mono', monospace",
-        fontSize: 12,
-        fontWeight: 500,
-        color: "#111",
-        padding: "4px 8px",
-        border: "1px solid #111",
-        borderRadius: 4,
-        transition: "all 0.12s",
-      }}
-      onMouseOver={(e) => { e.target.style.background = "#111"; e.target.style.color = "#fff"; }}
-      onMouseOut={(e) => { e.target.style.background = "transparent"; e.target.style.color = "#111"; }}
-    >
-      Профиль
-    </a>
-          <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: "#9ca3af" }}>
-            {new Date().toLocaleDateString("ru-RU")}
-          </span>
-    </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
+            <a
+              href="/profile/me"
+              style={{
+                textDecoration: "none",
+                fontFamily: "'IBM Plex Mono', monospace",
+                fontSize: 12, fontWeight: 500, color: "#111",
+                padding: "4px 8px",
+                border: "1px solid #111", borderRadius: 4,
+                transition: "all 0.12s",
+              }}
+              onMouseOver={(e) => { e.target.style.background = "#111"; e.target.style.color = "#fff"; }}
+              onMouseOut={(e)  => { e.target.style.background = "transparent"; e.target.style.color = "#111"; }}
+            >
+              Профиль
+            </a>
+            <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: "#9ca3af" }}>
+              {new Date().toLocaleDateString("ru-RU")}
+            </span>
+          </div>
         </header>
 
+        {/* ── Error banner ── */}
         {error && (
           <div style={{
             marginTop: 16, padding: "10px 14px",
@@ -354,15 +334,15 @@ export default function CurrForecast() {
               fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase",
               color: "#9ca3af", marginBottom: 12, fontFamily: "'IBM Plex Mono', monospace",
             }}>Валюты</div>
+
             {CURRENCIES.map(c => {
               const active = c.id === currCode;
-              const sr = sideRates[c.id];
-              const last = sr?.rate;
-              const prevR = sr?.prev;
-              const up = last !== undefined && prevR !== undefined ? last >= prevR : true;
-              const pct = last && prevR ? ((last - prevR) / prevR * 100).toFixed(2) : "…";
-              // Мини-спарклайн из истории для текущей валюты (или заглушка)
-              const spark = c.id === currCode && history.length > 1
+              const sr     = sideRates[c.id];
+              const last   = sr?.rate;
+              const prevR  = sr?.prev;
+              const up     = last !== undefined && prevR !== undefined ? last >= prevR : true;
+              const pct    = last && prevR ? ((last - prevR) / prevR * 100).toFixed(2) : "…";
+              const spark  = c.id === currCode && history.length > 1
                 ? history.slice(-10).map(d => d.rate)
                 : last ? [prevR, last] : [1, 1];
 
@@ -370,17 +350,14 @@ export default function CurrForecast() {
                 <div
                   key={c.id}
                   className="row"
-                  onClick={() => { setCurrCode(c.id); }}
+                  onClick={() => setCurrCode(c.id)}
                   style={{
                     display: "flex", alignItems: "center",
                     justifyContent: "space-between",
-                    padding: "9px 10px",
-                    borderRadius: 6,
-                    cursor: "pointer",
+                    padding: "9px 10px", borderRadius: 6, cursor: "pointer",
                     background: active ? "#f3f4f6" : "transparent",
                     borderLeft: `2px solid ${active ? "#111" : "transparent"}`,
-                    marginBottom: 2,
-                    transition: "all 0.1s",
+                    marginBottom: 2, transition: "all 0.1s",
                   }}
                 >
                   <div>
@@ -444,8 +421,9 @@ export default function CurrForecast() {
                   color: "#6b7280", textAlign: "right",
                   animation: "fade-in 0.3s ease",
                 }}>
+                  {/* Исправлено: GBM → LSTM */}
                   <div style={{ fontSize: 11, color: "#9ca3af", marginBottom: 2 }}>
-                    прогноз {fDays}д (GBM)
+                    прогноз {fDays}д (LSTM)
                   </div>
                   <span style={{
                     color: fPct >= 0 ? "#16a34a" : "#dc2626",
@@ -454,7 +432,9 @@ export default function CurrForecast() {
                     {fPct >= 0 ? "+" : ""}{fPct.toFixed(2)}%
                   </span>
                   {" → "}
-                  <span style={{ color: "#374151" }}>{fLast?.toLocaleString("ru-RU", { minimumFractionDigits: 2 })}</span>
+                  <span style={{ color: "#374151" }}>
+                    {fLast?.toLocaleString("ru-RU", { minimumFractionDigits: 2 })}
+                  </span>
                 </div>
               )}
             </div>
@@ -472,7 +452,11 @@ export default function CurrForecast() {
             {tab === "chart" && (
               <div style={{ animation: "fade-in 0.25s ease" }}>
                 {histLoading ? (
-                  <div style={{ height: 300, display: "flex", alignItems: "center", justifyContent: "center", color: "#9ca3af", fontFamily: "'IBM Plex Mono', monospace", fontSize: 12 }}>
+                  <div style={{
+                    height: 300, display: "flex", alignItems: "center",
+                    justifyContent: "center", color: "#9ca3af",
+                    fontFamily: "'IBM Plex Mono', monospace", fontSize: 12,
+                  }}>
                     <span style={{ animation: "spin 1s linear infinite", display: "inline-block", marginRight: 8 }}>◌</span>
                     Загрузка…
                   </div>
@@ -516,7 +500,8 @@ export default function CurrForecast() {
                             fill="rgba(22,163,74,0.07)" isAnimationActive={false} />
                           <Area dataKey="lower" stroke="none"
                             fill="#fafafa" isAnimationActive={false} />
-                          <Area dataKey="forecast"
+                          <Area
+                            dataKey="forecast"
                             stroke="#16a34a" strokeWidth={1.5} strokeDasharray="4 3"
                             fill="url(#gF)" dot={false}
                             activeDot={{ r: 3, fill: "#16a34a", strokeWidth: 0 }}
@@ -579,9 +564,9 @@ export default function CurrForecast() {
                     <tbody>
                       {[...history].reverse().map((row, i, arr) => {
                         const prevRow = arr[i + 1];
-                        const d = prevRow ? row.rate - prevRow.rate : 0;
+                        const d   = prevRow ? row.rate - prevRow.rate : 0;
                         const pct = prevRow ? (d / prevRow.rate * 100) : 0;
-                        const up = d >= 0;
+                        const up  = d >= 0;
                         return (
                           <tr key={row.iso} className="row" style={{ borderBottom: "1px solid #f3f4f6" }}>
                             <td style={{ padding: "9px 0", fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, color: "#6b7280" }}>{row.iso}</td>
@@ -629,9 +614,15 @@ export default function CurrForecast() {
                           {forecast.map(row => (
                             <tr key={row.iso} className="row" style={{ borderBottom: "1px solid #f3f4f6" }}>
                               <td style={{ padding: "8px 0", fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, color: "#6b7280" }}>{row.iso}</td>
-                              <td style={{ padding: "8px 0", fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, fontWeight: 600, color: "#16a34a" }}>{row.forecast.toLocaleString("ru-RU", { minimumFractionDigits: 4 })}</td>
-                              <td style={{ padding: "8px 0", fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, color: "#dc2626" }}>{row.lower.toLocaleString("ru-RU", { minimumFractionDigits: 4 })}</td>
-                              <td style={{ padding: "8px 0", fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, color: "#16a34a" }}>{row.upper.toLocaleString("ru-RU", { minimumFractionDigits: 4 })}</td>
+                              <td style={{ padding: "8px 0", fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, fontWeight: 600, color: "#16a34a" }}>
+                                {row.forecast.toLocaleString("ru-RU", { minimumFractionDigits: 4 })}
+                              </td>
+                              <td style={{ padding: "8px 0", fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, color: "#dc2626" }}>
+                                {row.lower.toLocaleString("ru-RU", { minimumFractionDigits: 4 })}
+                              </td>
+                              <td style={{ padding: "8px 0", fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, color: "#16a34a" }}>
+                                {row.upper.toLocaleString("ru-RU", { minimumFractionDigits: 4 })}
+                              </td>
                               <td style={{ padding: "8px 0", fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, color: row.conf > 65 ? "#16a34a" : row.conf > 40 ? "#d97706" : "#9ca3af" }}>
                                 {row.conf}%
                               </td>
@@ -679,13 +670,13 @@ export default function CurrForecast() {
 
             <button
               onClick={runForecast}
-              disabled={loading || histLoading || !history.length}
+              disabled={predLoading || histLoading || !history.length}
               style={{
                 width: "100%", padding: "10px",
                 borderRadius: 6, border: "1px solid #111",
-                background: (loading || histLoading) ? "#f3f4f6" : "#111",
-                color: (loading || histLoading) ? "#9ca3af" : "#fff",
-                cursor: (loading || histLoading) ? "not-allowed" : "pointer",
+                background: (predLoading || histLoading) ? "#f3f4f6" : "#111",
+                color: (predLoading || histLoading) ? "#9ca3af" : "#fff",
+                cursor: (predLoading || histLoading) ? "not-allowed" : "pointer",
                 fontSize: 12, fontWeight: 600,
                 fontFamily: "'IBM Plex Mono', monospace",
                 letterSpacing: "0.04em",
@@ -702,9 +693,10 @@ export default function CurrForecast() {
                 color: "#9ca3af", fontFamily: "'IBM Plex Mono', monospace", marginBottom: 12,
               }}>Модель</div>
               {[
-                ["Алгоритм", "GradientBoost"],
+                ["Алгоритм", "LSTM"],          // исправлено: было GradientBoost
                 ["Источник", "ЦБ РФ"],
-                ["Номинал", "1 ед."],
+                ["Номинал",  "1 ед."],
+                ["Валюта",   currCode],         // динамически показываем текущую валюту
                 ["Обновление", "ежедневно"],
               ].map(([k, v]) => (
                 <div key={k} style={{
@@ -719,7 +711,7 @@ export default function CurrForecast() {
               ))}
             </div>
 
-            {/* Статус загрузки */}
+            {/* Статус */}
             <div style={{
               marginTop: 20, padding: "8px 10px",
               borderRadius: 6, background: "#f3f4f6",
@@ -738,7 +730,6 @@ export default function CurrForecast() {
             </div>
 
           </div>
-
         </div>
       </div>
     </div>

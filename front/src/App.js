@@ -18,6 +18,7 @@ function App() {
           <Route path="/auth/login" element={<Login />} />
           <Route path="/auth/register" element={<Register />} />
           <Route path="/course/currency" element={<CurrForecast />} />
+          {/* <Route path="/course/predict" element={<CurrForecast />} /> */}
           <Route path="/profile/me" element={<Profile />} />
         </Routes>
       </div>
