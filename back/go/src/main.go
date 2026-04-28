@@ -3,9 +3,8 @@ package main
 import (
 	"api/db"
 	_ "fmt"
-
 )
 
-func main(){
+func main() {
 	db.Conn()
 }
