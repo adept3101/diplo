@@ -44,7 +44,7 @@ def parse_xml(xml_data):
 
 
 # ── ML: подготовка фичей ──────────────────────────────────────────────────────
-
+###### ML start
 def get_last_n_days_from_csv(file_path: str, n: int) -> pd.DataFrame:
     df = pd.read_csv(file_path)
     return df.tail(n)
@@ -222,13 +222,15 @@ async def predict(
 
     return forecast_results
 
+############## ML END
+
 
 @router.get("/")
 async def get_course(date_req=None):
     xml_data = await get_cb(date_req)
     return parse_xml(xml_data)
 
-
+#корректный курс
 @router.get("/currency")
 async def get_currency(
     date_req: str = Query(..., description="Формат: dd/mm/yyyy"),
@@ -239,7 +241,7 @@ async def get_currency(
     filtered  = [r for r in all_rates if r["code"] == name_val.upper()]
     return filtered if filtered else []
 
-
+#функция для получения истории
 @router.get("/history")
 async def get_currency_history(name_val: str, date_from: str, date_to: str):
     all_rates_xml = await get_cb(date_to)

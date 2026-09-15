@@ -275,44 +275,8 @@ export default function CurrForecast() {
         button:focus { outline: none; }
       `}</style>
 
-      <div style={{ maxWidth: 1200, margin: "0 auto", padding: "0 24px 48px" }}>
+      <div style={{ maxWidth: 1200, margin: "0 auto", padding: "24px 24px 48px" }}>
 
-        {/* ── Header ── */}
-        <header style={{
-          padding: "28px 0 20px",
-          borderBottom: "1px solid #e5e7eb",
-          display: "flex", alignItems: "baseline",
-          justifyContent: "space-between",
-        }}>
-          <div>
-            <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontWeight: 600, fontSize: 15, letterSpacing: "-0.02em" }}>
-              fx.forecast
-            </span>
-            <span style={{ color: "#9ca3af", fontSize: 12, marginLeft: 12 }}>
-              Прогноз курса валют · ЦБ РФ
-            </span>
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
-            <a
-              href="/profile/me"
-              style={{
-                textDecoration: "none",
-                fontFamily: "'IBM Plex Mono', monospace",
-                fontSize: 12, fontWeight: 500, color: "#111",
-                padding: "4px 8px",
-                border: "1px solid #111", borderRadius: 4,
-                transition: "all 0.12s",
-              }}
-              onMouseOver={(e) => { e.target.style.background = "#111"; e.target.style.color = "#fff"; }}
-              onMouseOut={(e)  => { e.target.style.background = "transparent"; e.target.style.color = "#111"; }}
-            >
-              Профиль
-            </a>
-            <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: "#9ca3af" }}>
-              {new Date().toLocaleDateString("ru-RU")}
-            </span>
-          </div>
-        </header>
 
         {/* ── Error banner ── */}
         {error && (

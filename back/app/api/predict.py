@@ -1,3 +1,4 @@
+#не нужный код predict есть в course.py. Удалю потом
 import joblib
 import numpy as np
 import tensorflow as tf

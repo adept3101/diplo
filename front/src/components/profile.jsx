@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+// import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
 
 const Profile = () => {
@@ -7,20 +7,20 @@ const Profile = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-const navigate = useNavigate();
+// const navigate = useNavigate();
 
-const handleLogout = async () => {
-  try {
-    await api.post('/auth/logout');
-    
-    localStorage.removeItem('token'); 
-    
-    navigate('/auth/login');
-  } catch (err) {
-    console.error("Ошибка при выходе:", err);
-    navigate('/auth/login');
-  }
-};
+// const handleLogout = async () => {
+//   try {
+//     await api.post('/auth/logout');
+//
+//     localStorage.removeItem('token'); 
+//
+//     navigate('/auth/login');
+//   } catch (err) {
+//     console.error("Ошибка при выходе:", err);
+//     navigate('/auth/login');
+//   }
+// };
 
   useEffect(() => {
     setLoading(true);
@@ -49,29 +49,9 @@ const handleLogout = async () => {
         @keyframes fade-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
       `}</style>
 
-      <div style={{ maxWidth: 1200, margin: "0 auto", padding: "0 24px 48px" }}>
+      <div style={{ maxWidth: 1200, margin: "0 auto", padding: "24px 24px 48px" }}>
         
-        {/* ── Header ── */}
-        <header style={{
-          padding: "28px 0 20px",
-          borderBottom: "1px solid #e5e7eb",
-          display: "flex",
-          alignItems: "baseline",
-          justifyContent: "space-between",
-        }}>
-          <div>
-            <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontWeight: 600, fontSize: 15, letterSpacing: "-0.02em" }}>
-              fx.profile
-            </span>
-            <span style={{ color: "#9ca3af", fontSize: 12, marginLeft: 12 }}>
-              Личный кабинет · Управление аккаунтом
-            </span>
-          </div>
-          <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: "#9ca3af" }}>
-            {new Date().toLocaleDateString("ru-RU")}
-          </span>
-        </header>
-
+        
         {error && (
           <div style={{
             marginTop: 16, padding: "10px 14px",
@@ -140,47 +120,8 @@ const handleLogout = async () => {
             ) : null}
           </div>
 
-          {/* ── Right Sidebar (Actions) ── */}
-          <div style={{ width: 220, flexShrink: 0 }}>
-            <div style={{
-              fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase",
-              color: "#9ca3af", fontFamily: "'IBM Plex Mono', monospace", marginBottom: 12,
-            }}>Действия</div>
-            <button 
-    onClick={() => navigate('/course/currency')}
-    style={{
-      width: "100%", padding: "10px", textAlign: "left",
-      borderRadius: 6, border: "1px solid #e5e7eb",
-      background: "#111", color: "#fff", cursor: "pointer", // Выделил черным цветом для акцента
-      fontSize: 12, fontWeight: 600, fontFamily: "'IBM Plex Mono', monospace",
-      marginBottom: 8, transition: "all 0.1s"
-    }} 
-    onMouseOver={e => e.currentTarget.style.background = "#333"} 
-    onMouseOut={e => e.currentTarget.style.background = "#111"}>
-    Курсы валют
-  </button>
-            <button style={{
-              width: "100%", padding: "10px", textAlign: "left",
-              borderRadius: 6, border: "1px solid #e5e7eb",
-              background: "#fff", color: "#111", cursor: "pointer",
-              fontSize: 12, fontWeight: 600, fontFamily: "'IBM Plex Mono', monospace",
-              marginBottom: 8, transition: "all 0.1s"
-            }} onMouseOver={e => e.currentTarget.style.background = "#f9fafb"} 
-               onMouseOut={e => e.currentTarget.style.background = "#fff"}>
-              Настройки профиля
-            </button>
 
-            <button onClick={handleLogout} style={{
-              width: "100%", padding: "10px", textAlign: "left",
-              borderRadius: 6, border: "1px solid #fecaca",
-              background: "#fff", color: "#dc2626", cursor: "pointer",
-              fontSize: 12, fontWeight: 600, fontFamily: "'IBM Plex Mono', monospace",
-              transition: "all 0.1s"
-            }} onMouseOver={e => e.currentTarget.style.background = "#fef2f2"} 
-               onMouseOut={e => e.currentTarget.style.background = "#fff"}>
-                Выйти
-            </button>
-
+            
             {/* <div style={{  */}
               {/* marginTop: 32, padding: "12px", borderRadius: 8,  */}
               {/* background: "linear-gradient(135deg, #111, #333)", color: "#fff"  */}
@@ -192,7 +133,7 @@ const handleLogout = async () => {
 
         </div>
       </div>
-    </div>
+    // </div>
   );
 };
 

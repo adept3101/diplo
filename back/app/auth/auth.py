@@ -1,3 +1,4 @@
+#Регистрация и авторизация по JWT токену
 from fastapi import Response, HTTPException, Depends, APIRouter
 from fastapi.responses import RedirectResponse
 from app.models.schemas import UserSchema

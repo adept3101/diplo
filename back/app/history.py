@@ -1,3 +1,4 @@
+#код для получения истории курса не нужный т.к в course.py. Удалю потом
 import requests
 import xml.etree.ElementTree as ET
 import pandas as pd

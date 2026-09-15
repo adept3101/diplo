@@ -1,3 +1,4 @@
+#токен
 from authx import AuthX, AuthXConfig
 
 config = AuthXConfig()
