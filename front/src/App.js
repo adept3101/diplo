@@ -1,17 +1,15 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
-import Login from './components/login';
-import Register from './components/register';
+import Login from './components/Login';
+import Register from './components/Register';
 import CurrForecast from './components/CurrForecast';
-import Profile from './components/profile';
+import Profile from './components/Profile';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 
-// Выносим логику в отдельный компонент, чтобы useLocation работал внутри Router
 function AppLayout() {
   const location = useLocation();
   
-  // На страницах авторизации navbar и footer не нужны
   const isAuthPage = ['/auth/login', '/auth/register'].includes(location.pathname);
 
   return (

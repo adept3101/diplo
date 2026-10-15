@@ -4,8 +4,6 @@ import {
   Tooltip, ResponsiveContainer, ReferenceLine
 } from "recharts";
 
-// ── Config ────────────────────────────────────────────────────────────────────
-
 const API_BASE = "http://localhost:8000/course";
 
 const CURRENCIES = [
@@ -18,8 +16,6 @@ const CURRENCIES = [
   { id: "KZT", name: "Тенге" },
   { id: "BYN", name: "Белорусский рубль" },
 ];
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function today() {
   return new Date().toISOString().split("T")[0];
@@ -39,7 +35,6 @@ function parseRate(str) {
   return parseFloat(String(str).replace(",", "."));
 }
 
-// Fetch курс за один день
 async function fetchRate(dateIso, currCode) {
   const dd = dateIso.split("-").reverse().join("/");
   const url = `${API_BASE}/currency?date_req=${dd}&name_val=${currCode}`;
@@ -57,7 +52,6 @@ async function fetchRate(dateIso, currCode) {
   }
 }
 
-// Формирует историю за N дней назад до сегодня
 async function fetchHistory(currCode, days) {
   const end      = today();
   const promises = [];
@@ -69,7 +63,6 @@ async function fetchHistory(currCode, days) {
 
   const results = await Promise.all(promises);
 
-  // Forward Fill: берём последнее известное значение для выходных/праздников
   let lastValidRate = 0;
   const filledData = results.map((item) => {
     if (item.rate !== null && !isNaN(item.rate)) {
@@ -84,8 +77,6 @@ async function fetchHistory(currCode, days) {
 
   return filledData.filter(r => r.rate > 0);
 }
-
-// ── Spark ─────────────────────────────────────────────────────────────────────
 
 function Spark({ data, up }) {
   const mn  = Math.min(...data);
@@ -104,8 +95,6 @@ function Spark({ data, up }) {
     </svg>
   );
 }
-
-// ── Tooltip ───────────────────────────────────────────────────────────────────
 
 const Tip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null;
@@ -126,8 +115,6 @@ const Tip = ({ active, payload, label }) => {
   );
 };
 
-// ── App ───────────────────────────────────────────────────────────────────────
-
 export default function CurrForecast() {
   const [currCode,    setCurrCode]    = useState("USD");
   const [hDays,       setHDays]       = useState(30);
@@ -141,7 +128,6 @@ export default function CurrForecast() {
   const [tab,         setTab]         = useState("chart");
   const [error,       setError]       = useState(null);
 
-  // При изменении валюты или периода — перезагружаем историю
   useEffect(() => {
     setDone(false);
     setForecast([]);
@@ -149,7 +135,6 @@ export default function CurrForecast() {
     loadHistory();
   }, [currCode, hDays]); // eslint-disable-line
 
-  // При монтировании — загружаем сайдбар
   useEffect(() => {
     loadSideRates();
   }, []);
@@ -181,8 +166,6 @@ export default function CurrForecast() {
     );
     setSideRates(results);
   }
-
-  // ── Прогноз ────────────────────────────────────────────────────────────────
 
   async function runForecast() {
     if (!history.length) return;
@@ -221,8 +204,6 @@ export default function CurrForecast() {
     }
   }
 
-  // ── Производные значения ───────────────────────────────────────────────────
-
   const cur      = history.at(-1)?.rate ?? 0;
   const prev     = history.at(-2)?.rate ?? cur;
   const delta    = cur - prev;
@@ -235,8 +216,6 @@ export default function CurrForecast() {
     ...history.map(d => ({ ...d, type: "h" })),
     ...(done ? forecast : []),
   ];
-
-  // ── Стили ─────────────────────────────────────────────────────────────────
 
   const segBtn = (active) => ({
     padding: "5px 12px", fontSize: 12, cursor: "pointer",
@@ -254,8 +233,6 @@ export default function CurrForecast() {
     marginRight: 20, transition: "all 0.12s",
     letterSpacing: "0.03em",
   });
-
-  // ── Render ────────────────────────────────────────────────────────────────
 
   return (
     <div style={{

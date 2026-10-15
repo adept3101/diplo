@@ -25,7 +25,6 @@ function Register() {
         localStorage.setItem('token', loginResponse.data['access token']);
       }
       
-      // Направляем на профиль или дашборд после логина
       navigate('/profile/me'); 
     } catch (err) {
       if (err.response?.status === 400) {
