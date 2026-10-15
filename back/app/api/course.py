@@ -10,9 +10,6 @@ import pandas as pd
 router = APIRouter(prefix="/course", tags=["Course"])
 client = httpx.AsyncClient()
 
-
-# ── Утилиты ───────────────────────────────────────────────────────────────────
-
 def clean_value(value_str: str) -> float:
     try:
         return float(value_str.replace(',', '.'))
@@ -42,9 +39,6 @@ def parse_xml(xml_data):
         rates.append({"code": char_code, "name": name, "nominal": nominal, "value": value})
     return rates
 
-
-# ── ML: подготовка фичей ──────────────────────────────────────────────────────
-###### ML start
 def get_last_n_days_from_csv(file_path: str, n: int) -> pd.DataFrame:
     df = pd.read_csv(file_path)
     return df.tail(n)
@@ -136,8 +130,6 @@ def build_next_row(window_df: pd.DataFrame, pred_rate: float, next_date: datetim
     return pd.DataFrame([new_row])
 
 
-# ── Загрузка модели ───────────────────────────────────────────────────────────
-
 custom_objects = {
     'mse': tf.keras.losses.MeanSquaredError(),
 }
@@ -146,8 +138,6 @@ model        = tf.keras.models.load_model("usd_rate_lstm_improved.h5", custom_ob
 feat_scaler  = joblib.load("feature_scaler.pkl")
 target_scaler = joblib.load("target_scaler.pkl")
 
-
-# ── Эндпоинты ─────────────────────────────────────────────────────────────────
 
 @router.get("/predict")
 async def predict(
@@ -221,9 +211,6 @@ async def predict(
         )
 
     return forecast_results
-
-############## ML END
-
 
 @router.get("/")
 async def get_course(date_req=None):

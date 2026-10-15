@@ -1,18 +1,14 @@
-#Регистрация и авторизация по JWT токену
 from fastapi import Response, HTTPException, Depends, APIRouter
 from fastapi.responses import RedirectResponse
 from app.models.schemas import UserSchema
 from app.core.security import security, config
-from fastapi.security import OAuth2PasswordBearer#, OAuth2PasswordRequestForm
+from fastapi.security import OAuth2PasswordBearer
 from typing import Annotated
 from app.core.db import get_db
 from app.models.models import Users
 from sqlalchemy.orm import Session
 from jose import JWTError, jwt
-
-# from passlib.hash import argon2
 from argon2 import PasswordHasher
-# from argon2.exceptions import VerifyMismatchError, InvalidHashError
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
@@ -22,25 +18,20 @@ SECRET_KEY = "SECRET_KEY"
 ph = PasswordHasher()
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 
-
 def hashed_pass(password: str) -> str:
     hash_pass = ph.hash(password)
     return hash_pass
 
-
 def verify_pass(password: str, hash_password: str) -> bool:
     return ph.verify(hash_password, password)
-
 
 @router.get("/items")
 async def read_items(token: Annotated[str, Depends(oauth2_scheme)]):
     return {"token": token}
 
-
 @router.post("/login")
 def login(creds: UserSchema, response: Response, db: Session = Depends(get_db)):
     user = db.query(Users).filter(Users.login == creds.login).first()
-    # if creds.login == db.query(Users).filter(Users.login == login) and creds.password == "test":
     if not user or not verify_pass(creds.password, user.password):
         raise HTTPException(status_code=401, detail="Неверный логин или пароль")
 
@@ -65,8 +56,6 @@ def register(reg: UserSchema, db: Session = Depends(get_db)):
 
 @router.post("/logout")
 def logout(response: Response):
-    # response.delete_cookie(config.JWT_ACCESS_COOKIE_NAME)
-    # return RedirectResponse("/auth/login", status_code=303)
     response = RedirectResponse(url="/auth/login", status_code=303)
     
     response.delete_cookie(
@@ -76,7 +65,6 @@ def logout(response: Response):
         samesite="lax"
     )
     return response
-
 
 def get_usr(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
     try:

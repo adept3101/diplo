@@ -1,4 +1,3 @@
-#БД
 from sqlalchemy import Column, Integer, String, DateTime
 from sqlalchemy.orm import Mapped, MappedColumn
 from app.core.db import Base
